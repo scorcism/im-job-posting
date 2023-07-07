@@ -420,7 +420,7 @@ router.post('/candidate', [
 })
 
 
-router.post('/applicant', fetchUser, async () => {
+router.post('/applicant', fetchUser, async (req, res) => {
 
     let id = req.user.id;
 
@@ -428,6 +428,7 @@ router.post('/applicant', fetchUser, async () => {
 
     try {
         let checkuser = await User.findById({ _id: id, role: 1 });
+
         let checkadmin = await User.findById({ _id: adminId, role: 0 });
 
         let checkcategory = await Jobcategory.findById({ _id: jobCategoryId });
@@ -440,7 +441,7 @@ router.post('/applicant', fetchUser, async () => {
             res.status(403).json({ status: 0, message: "Not authorised" })
         }
 
-        let application = await Applicant.findOne({ userId: id })
+        let application = await Applicant.findOne({ userId: id, jobListingId: jobListingId })
         if (application) {
             return res.status(400).json({ status: 0, message: "Already applied" })
         }
@@ -451,6 +452,16 @@ router.post('/applicant', fetchUser, async () => {
 
         res.status(200).json({ status: 1, message: `Applied to ${jobListingId}` })
 
+    } catch (error) {
+        console.log(error)
+        return res.status(500).json({ status: 0, message: "Internal Server error" })
+    }
+})
+
+router.get('/applicant', fetchUser, async (req, res) => {
+    try {
+        let applications = await Applicant.find({});
+        res.status(200).json({ status: 0, message: applications })
     } catch (error) {
         console.log(error)
         return res.status(500).json({ status: 0, message: "Internal Server error" })
