@@ -28,17 +28,17 @@ router.post('/user', [
     const errors = validationResult(req);
 
     if (!errors.isEmpty()) {
-        // console.log(errors)
+        console.log(errors)
         return res.status(400).json({ status: 0, message: "Check all the fields" })
     }
 
-    const { name, email, password, role } = req.body;
+    const { name, email, password } = req.body;
 
     // check if member is already present or not
     try {
         let user = await User.findOne({ email });
         if (user) {
-            return res.status(400).json({ error: "User already exists" })
+            return res.status(400).json({ status: 0, message: "User already exists" })
         }
         const salt = await bcrypt.genSaltSync(10);
         const secPassword = await bcrypt.hash(password, salt);
@@ -62,6 +62,28 @@ router.post('/user', [
         res.status(500).json({ status: 0, message: "Internal Server error" })
     }
 })
+
+router.get('/user', fetchUser, async (req, res) => {
+    let id = req.user.id;
+
+    try {
+
+        let user = await User.findById({ _id: id }).select("-password");
+        if (!user) {
+            return res.status(400).json({ status: 0, message: "Some error occured" })
+        }
+
+        res.status(200).json({
+            status: 0,
+            message: user
+        })
+
+    } catch (error) {
+        console.log("create: " + erorr)
+        res.status(500).json({ status: 0, message: "Internal Server error" })
+    }
+})
+
 
 router.post('/login', [
     body('email', 'email Required').isEmail(),
@@ -136,7 +158,7 @@ router.post('/category', [
         }
         let newCategory = await Jobcategory.create({
             name: name,
-            adminId: id
+            adminId: adminId
         })
         res.status(200).json({
             message: "new category added",
@@ -298,10 +320,11 @@ router.get('/admincategory', fetchUser, async (req, res) => {
     }
 })
 
-router.get('/adminjobtype', fetchUser, async (req, res) => {
+router.post('/adminjobtype', fetchUser, async (req, res) => {
+    const { categoryId } = req.body;
     try {
         let adminId = req.user.id;
-        let types = await Jobtype.find({ adminId: adminId });
+        let types = await Jobtype.find({ adminId: adminId, jobCategoryId: categoryId });
 
         res.status(200).json({
             status: 1,
@@ -401,14 +424,36 @@ router.post('/applicant', fetchUser, async () => {
 
     let id = req.user.id;
 
+    const { adminId, jobCategoryId, jobTypeId, jobListingId } = req.body;
+
     try {
+        let checkuser = await User.findById({ _id: id, role: 1 });
+        let checkadmin = await User.findById({ _id: adminId, role: 0 });
+
+        let checkcategory = await Jobcategory.findById({ _id: jobCategoryId });
+
+        let checktype = await Jobtype.findById({ _id: jobTypeId });
+
+        let checklisting = await Joblisting.findById({ _id: jobListingId });
+
+        if (!checkuser || !checkcategory || !checktype || !checklisting || !checkadmin) {
+            res.status(403).json({ status: 0, message: "Not authorised" })
+        }
+
         let application = await Applicant.findOne({ userId: id })
         if (application) {
             return res.status(400).json({ status: 0, message: "Already applied" })
         }
 
-    } catch (error) {
+        let newApplication = await Applicant.create({
+            userId: id, adminId, jobCategoryId, jobTypeId, jobListingId
+        })
 
+        res.status(200).json({ status: 1, message: `Applied to ${jobListingId}` })
+
+    } catch (error) {
+        console.log(error)
+        return res.status(500).json({ status: 0, message: "Internal Server error" })
     }
 })
 
@@ -425,11 +470,58 @@ router.post('/reject/:id', [
         return res.status(400).json({ status: 0, message: "Check all the fields" })
     }
 
-    let id = req.user.id;
+    let id = req.user.id; // curr user i.e. admin
+
+    let applicationId = req.params.id; // application to be rejected
 
     const { message } = req.body;
 
     try {
+
+        let checkadmin = await User.findById({ _id: id, role: 0 });// only admin
+        if (!checkadmin) {
+            res.status(403).json({ status: 0, message: "Not authorised" })
+        }
+        let appli = await Applicant.findById({ _id: applicationId })
+        if (!appli) {
+            res.status(403).json({ status: 0, message: "Not authorised" })
+        }
+
+        let addMesageandReject = await Applicant.updateOne({ _id: applicationId }, { $set: { message: message, status: "rejected" } })
+
+        res.status(200).json({ status: 1, message: `Application ${appli.name} Rejected` })
+
+    } catch (error) {
+        console.log(error)
+        return res.status(500).json({ status: 0, message: "Internal Server error" })
+    }
+})
+
+router.post('/status/:id', fetchUser, async (req, res) => {
+
+    let id = req.user.id; // curr user i.e. admin
+
+    let applicationId = req.params.id; // application to be rejected
+
+    const { message } = req.body;
+
+    try {
+
+        let checkadmin = await User.findById({ _id: id, role: 0 });// only admin
+
+        if (!checkadmin) {
+            res.status(403).json({ status: 0, message: "Not authorised" })
+        }
+
+        let appli = await Applicant.findById({ _id: applicationId })
+
+        if (!appli) {
+            res.status(403).json({ status: 0, message: "Not authorised" })
+        }
+
+        let addMesageandReject = await Applicant.updateOne({ _id: applicationId }, { $set: { status: "approved" } })
+
+        res.status(200).json({ status: 1, message: `Application ${appli.name} Approved` })
 
     } catch (error) {
         console.log(error)

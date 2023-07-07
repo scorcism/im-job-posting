@@ -2,6 +2,10 @@ const mongoose = require('mongoose')
 const { Schema } = mongoose;
 
 const ApplicantsSchema = new Schema({
+    adminId:{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
     userId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
